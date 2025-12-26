@@ -184,7 +184,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <Logo size="sm" />
           <p className="text-sm text-muted-foreground">
-            © 2024 ShareSphere. Made with ❤️ for BUET Students
+            © 2025 ShareSphere. Made with ❤️ for BUET Students
           </p>
         </div>
       </footer>
