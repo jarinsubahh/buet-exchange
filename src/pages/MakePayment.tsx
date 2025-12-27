@@ -3,59 +3,16 @@ import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import { getPosts } from "@/store/posts";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
-const MockPayment = () => {
+const MakePayment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [post, setPost] = useState<any>(null);
 
   useEffect(() => {
-    (async () => {
-      const posts = getPosts();
-      const p = posts.find((x) => x.id === id);
-      if (p) {
-        setPost(p || null);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase.from("posts").select("*").eq("id", id).maybeSingle();
-        if (error) {
-          console.error("Failed to fetch post for payment", error);
-          setPost(null);
-          return;
-        }
-        if (!data) {
-          setPost(null);
-          return;
-        }
-
-        const mapped = {
-          id: data.id,
-          title: data.title,
-          description: data.description,
-          type: data.is_free ? "free" : data.type,
-          category: data.category,
-          department: data.dept,
-          price: data.price,
-          imageUrl: data.image_url ?? null,
-          fileUrl: data.file_url ?? null,
-          isPdf: data.is_pdf ?? false,
-          contactInfo: data.contact,
-          userId: data.seller_id ?? data.user_id,
-          userName: data.name ?? data.seller_id ?? data.user_id,
-          userDepartment: data.dept,
-          status: data.sold_out ? "sold" : data.rejected ? "rejected" : data.approved ? "approved" : "pending",
-          createdAt: data.created_at,
-        };
-
-        setPost(mapped as any);
-      } catch (ex) {
-        console.error(ex);
-        setPost(null);
-      }
-    })();
+    const posts = getPosts();
+    const p = posts.find((x) => x.id === id);
+    setPost(p || null);
   }, [id]);
 
   if (!post) {
@@ -71,8 +28,8 @@ const MockPayment = () => {
 
         <main className="max-w-3xl mx-auto px-6 py-12">
           <div className="glass-card p-8 text-center">
-            <h2 className="text-lg font-semibold mb-2">Payment Item Not Found</h2>
-            <p className="text-muted-foreground mb-6">Could not find the item to pay for.</p>
+            <h2 className="text-lg font-semibold mb-2">Item not found</h2>
+            <p className="text-muted-foreground mb-6">The item could not be loaded for payment.</p>
             <button onClick={() => navigate('/dashboard')} className="py-2 px-4 rounded bg-secondary/10">Back to Dashboard</button>
           </div>
         </main>
@@ -92,8 +49,8 @@ const MockPayment = () => {
 
       <main className="max-w-3xl mx-auto px-6 py-12">
         <div className="glass-card p-8">
-          <h2 className="text-xl font-bold mb-2">Mock Payment</h2>
-          <p className="text-muted-foreground mb-6">This is a demo payment flow. No real payments are processed.</p>
+          <h2 className="text-xl font-bold mb-2">Make Payment</h2>
+          <p className="text-muted-foreground mb-6">Choose a payment option to access the seller's resource.</p>
 
           <div className="mb-6">
             <div className="text-sm text-muted-foreground">Item</div>
@@ -106,13 +63,10 @@ const MockPayment = () => {
           </div>
 
           <button
-            onClick={() => {
-              // simulate payment success and redirect to access page with paid flag
-              navigate(`/access/${id}?paid=1`);
-            }}
+            onClick={() => navigate(`/mock-payment/${id}`)}
             className="btn-primary w-full"
           >
-            Proceed to Payment
+            Choose Payment Option
           </button>
         </div>
       </main>
@@ -120,5 +74,4 @@ const MockPayment = () => {
   );
 };
 
-export default MockPayment;
-// end
+export default MakePayment;

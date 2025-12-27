@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
+import { toast } from "sonner";
 import { getPosts, updatePostStatus } from "@/store/posts";
 import { supabase } from "@/lib/supabase";
 
@@ -10,6 +11,7 @@ const AccessContent = () => {
   const [search] = useSearchParams();
   const paid = search.get("paid") === "1";
   const [post, setPost] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "null");
@@ -20,6 +22,7 @@ const AccessContent = () => {
       const pLocal = posts.find((x) => x.id === id);
       if (pLocal) {
         setPost(pLocal);
+        setLoading(false);
         return;
       }
 
@@ -56,16 +59,60 @@ const AccessContent = () => {
         };
 
         setPost(mapped as any);
+        setLoading(false);
       } catch (ex) {
         console.error(ex);
         setPost(null);
+        setLoading(false);
       }
     })();
   }, [id]);
 
-  if (!post) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen relative">
+        <AnimatedBackground />
+        <header className="sticky top-0 z-50 px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-border">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <button onClick={() => navigate(-1)} className="text-muted-foreground">Back</button>
+            <Logo size="sm" showText={false} />
+          </div>
+        </header>
+
+        <main className="max-w-3xl mx-auto px-6 py-12">
+          <div className="glass-card p-8 text-center">
+            <div className="h-8 w-8 rounded-full border-4 border-primary animate-spin mx-auto mb-4" />
+            <div className="text-muted-foreground">Loading resource...</div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const isAdmin = currentUser?.isAdmin;
+
+  // If post couldn't be loaded, show friendly message
+  if (!post) {
+    return (
+      <div className="min-h-screen relative">
+        <AnimatedBackground />
+        <header className="sticky top-0 z-50 px-6 py-4 bg-background/80 backdrop-blur-xl border-b border-border">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <button onClick={() => navigate(-1)} className="text-muted-foreground">Back</button>
+            <Logo size="sm" showText={false} />
+          </div>
+        </header>
+
+        <main className="max-w-3xl mx-auto px-6 py-12">
+          <div className="glass-card p-8 text-center">
+            <h2 className="text-lg font-semibold mb-2">Resource Not Found</h2>
+            <p className="text-muted-foreground mb-6">The requested resource could not be loaded.</p>
+            <button onClick={() => navigate('/dashboard')} className="py-2 px-4 rounded bg-secondary/10">Back to Dashboard</button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // If resource is not approved and viewer is not admin, block access
   if (post.status !== "approved" && !isAdmin) {
@@ -90,7 +137,60 @@ const AccessContent = () => {
     );
   }
 
-  // No admin approve/reject here — admin handles it from admin panel
+  // If it's a sell post and user is not admin and not paid, redirect to mock payment
+  if (post.type === "sell" && !paid && !isAdmin) {
+    navigate(`/mock-payment/${id}`);
+    return null;
+  }
+
+  // Admin approve/reject handlers (update Supabase and local store)
+  const handleApprove = async () => {
+    try {
+      const { error } = await supabase.from("posts").update({ approved: true, rejected: false, updated_at: new Date() }).eq("id", post.id);
+      if (error) {
+        console.error("approve failed", error);
+        toast.error("Failed to approve post");
+        return;
+      }
+      updatePostStatus(post.id, "approved");
+      setPost({ ...post, status: "approved" });
+      toast.success("Post approved and published!");
+      navigate("/admin");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to approve post");
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .update({ approved: false, rejected: true, updated_at: new Date() })
+        .eq("id", post.id);
+
+      if (error) {
+        console.error("reject failed", error);
+        const msg = (error as any)?.message || String(error);
+        if (msg.toLowerCase().includes("column \"rejected\"") || msg.toLowerCase().includes("unrecognized column")) {
+          const help = `Your database does not have a boolean column named 'rejected' on the posts table. Run this SQL in Supabase SQL editor to add it:\n\nALTER TABLE public.posts ADD COLUMN rejected boolean DEFAULT false;\n\nThen retry rejecting the post from the admin UI.`;
+          console.error(help);
+          toast.error("Failed to reject post: DB missing 'rejected' column. See console for SQL to add it.");
+          return;
+        }
+        toast.error("Failed to reject post");
+        return;
+      }
+
+      updatePostStatus(post.id, "rejected");
+      setPost({ ...post, status: "rejected" });
+      toast.success("Post rejected (kept in seller profile)");
+      navigate("/admin");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to reject post");
+    }
+  };
 
   return (
     <div className="min-h-screen relative">
@@ -134,8 +234,15 @@ const AccessContent = () => {
             <div className="mb-6 text-muted-foreground">No resource URL provided by the seller.</div>
           )}
 
-          <div className="mt-6">
-            <button onClick={() => navigate('/dashboard')} className="w-full py-2 rounded-lg bg-secondary/10">Back to Dashboard</button>
+          <div className="mt-6 flex gap-3">
+            {currentUser?.isAdmin && (
+              <>
+                <button onClick={handleApprove} className="flex-1 py-2 rounded-lg bg-success/20 text-green-500">Approve</button>
+                <button onClick={handleReject} className="flex-1 py-2 rounded-lg bg-destructive/20 text-destructive">Reject</button>
+              </>
+            )}
+
+            <button onClick={() => navigate('/dashboard')} className="flex-1 py-2 rounded-lg bg-secondary/10">Back to Dashboard</button>
           </div>
         </div>
       </main>

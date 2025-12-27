@@ -100,7 +100,7 @@ const PostCard = ({ post, onMarkSold, showActions = false, showAccess = true }: 
       <div className="mt-4">
         {showAccess && (
           <Link
-            to={`/access/${post.id}`}
+            to={post.type === "sell" && post.status !== "sold" ? `/make-payment/${post.id}` : `/access/${post.id}`}
             className="block w-full text-center py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
           >
             Access

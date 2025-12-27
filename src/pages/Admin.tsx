@@ -149,32 +149,7 @@ const Admin = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
             {pendingPosts.map((post) => (
               <div key={post.id} className="glass-card p-6">
-                <PostCard post={post} showAccess={false} />
-
-                <div className="mt-4 pt-4 border-t border-border flex gap-3">
-                  <Link
-                    to={`/access/${post.id}`}
-                    className="flex-1 text-center py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
-                  >
-                    Access
-                  </Link>
-
-                  <button
-                    onClick={() => handleApprove(post.id)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-success/20 text-green-400 hover:bg-success/30 transition-colors"
-                  >
-                    <Check className="w-4 h-4" />
-                    Approve
-                  </button>
-
-                  <button
-                    onClick={() => handleReject(post.id)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                    Reject
-                  </button>
-                </div>
+                <PostCard post={post} />
               </div>
             ))}
           </div>
