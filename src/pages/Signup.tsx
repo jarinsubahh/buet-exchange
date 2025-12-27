@@ -18,6 +18,8 @@ const departments = [
   { value: "NAME", label: "Naval Architecture & Marine Engineering" },
   { value: "WRE", label: "Water Resources Engineering" },
   { value: "ARCH", label: "Architecture" },
+  { value: "NCE", label: "Nanomaterials & Ceramic Engineering" },
+  { value: "URP", label: "Urban & Regional Planning" },
 ];
 
 const Signup = () => {
@@ -37,7 +39,7 @@ const Signup = () => {
 
   const isArchitecture = formData.department === "ARCH";
   const maxLevel = isArchitecture ? 5 : 4;
-  const maxTerm = isArchitecture ? 10 : 8;
+  const maxTerm = 2; // only Term 1 and Term 2 for all departments
 
   const validateBuetEmail = (email: string) => {
     return email.endsWith("@gmail.com") || email.endsWith(".buet.ac.bd");

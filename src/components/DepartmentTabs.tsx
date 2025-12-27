@@ -18,6 +18,8 @@ const departments: Department[] = [
   "NAME",
   "WRE",
   "ARCH",
+  "NCE",
+  "URP",
 ];
 
 const DepartmentTabs = ({ selected, onSelect }: DepartmentTabsProps) => {

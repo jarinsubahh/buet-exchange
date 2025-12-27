@@ -16,7 +16,7 @@ const categories: { value: Category; label: string; icon: any }[] = [
   { value: "other", label: "Other", icon: Package },
 ];
 
-const departments = ["CSE", "EEE", "ME", "CE", "ChE", "BME", "IPE", "MME", "NAME", "WRE", "ARCH"];
+const departments = ["CSE", "EEE", "ME", "CE", "ChE", "BME", "IPE", "MME", "NAME", "WRE", "ARCH", "NCE", "URP"];
 
 const Sell = () => {
   const navigate = useNavigate();

@@ -34,6 +34,11 @@ const PostCard = ({ post, onMarkSold, showActions = false }: PostCardProps) => {
           Sold Out
         </div>
       )}
+      {post.status === "rejected" && (
+        <div className="absolute top-4 right-4 badge-rejected px-3 py-1 rounded-full text-xs font-medium">
+          Rejected
+        </div>
+      )}
       {post.type === "free" && post.status !== "sold" && (
         <div className="absolute top-4 right-4 badge-free px-3 py-1 rounded-full text-xs font-medium">
           Free

@@ -21,7 +21,7 @@ export interface Post {
   userId: string;
   userName: string;
   userDepartment: string;
-  status: "pending" | "approved" | "sold";
+  status: "pending" | "approved" | "sold" | "rejected";
   createdAt: string;
 }
 
@@ -37,6 +37,8 @@ export type Department =
   | "MME"
   | "NAME"
   | "WRE"
-  | "ARCH";
+  | "ARCH"
+  | "NCE"
+  | "URP";
 
 export type Category = "pdf" | "book" | "lab_equipment" | "notes" | "other";

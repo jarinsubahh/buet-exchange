@@ -39,7 +39,7 @@ const Dashboard = () => {
       }
 
       // fetch users for mapping seller info
-      const sellerIds = Array.from(new Set((data || []).map((p: any) => p.seller_id).filter(Boolean)));
+      const sellerIds = Array.from(new Set((data || []).flatMap((p: any) => [p.seller_id, p.user_id]).filter(Boolean)));
       let usersMap: Record<string, any> = {};
       if (sellerIds.length) {
         const { data: usersData } = await supabase.from("users").select("id, name, dept, contact, email").in("id", sellerIds);
@@ -56,10 +56,11 @@ const Dashboard = () => {
         price: p.price,
         imageUrl: null,
         contactInfo: p.contact,
-        userId: usersMap[p.seller_id]?.email ?? p.seller_id,
-        userName: usersMap[p.seller_id]?.name ?? "Student User",
-        userDepartment: usersMap[p.seller_id]?.dept ?? p.dept,
-        status: (p.sold_out ? "sold" : p.approved ? "approved" : "pending") as Post['status'],
+        userId: usersMap[p.seller_id]?.email ?? usersMap[p.user_id]?.email ?? p.seller_id ?? p.user_id,
+        userName:
+          usersMap[p.seller_id]?.name ?? usersMap[p.user_id]?.name ?? p.name ?? "Student User",
+        userDepartment: usersMap[p.seller_id]?.dept ?? usersMap[p.user_id]?.dept ?? p.dept,
+        status: (p.sold_out ? "sold" : p.rejected ? "rejected" : p.approved ? "approved" : "pending") as Post['status'],
         createdAt: p.created_at,
       }));
 

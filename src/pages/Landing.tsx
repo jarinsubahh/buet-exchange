@@ -25,7 +25,7 @@ const Landing = () => {
   ];
 
   const stats = [
-    { value: "11", label: "Departments" },
+    { value: "13", label: "Departments" },
     { value: "1000+", label: "Students" },
     { value: "Free", label: "& Affordable" },
   ];

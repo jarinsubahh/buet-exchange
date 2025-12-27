@@ -25,7 +25,7 @@ const Admin = () => {
       return;
     }
     setUser(parsedUser);
-    // fetch pending posts from Supabase
+    // fetch pending posts and user info from Supabase
     (async () => {
       const { data, error } = await supabase.from("posts").select("*").eq("approved", false).order("created_at", { ascending: false });
       if (error) {
@@ -33,7 +33,32 @@ const Admin = () => {
         toast.error("Failed to load pending posts");
         return;
       }
-      setPendingPosts(data as Post[]);
+
+      const sellerIds = Array.from(new Set((data || []).flatMap((p: any) => [p.seller_id, p.user_id]).filter(Boolean)));
+      let usersMap: Record<string, any> = {};
+      if (sellerIds.length) {
+        const { data: usersData } = await supabase.from("users").select("id, name, dept, contact, email").in("id", sellerIds);
+        usersMap = (usersData || []).reduce((acc: any, u: any) => ({ ...acc, [u.id]: u }), {});
+      }
+
+      const mapped: Post[] = (data || []).map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        type: (p.is_free ? "free" : p.type) as Post['type'],
+        category: p.category as Post['category'],
+        department: p.dept,
+        price: p.price,
+        imageUrl: null,
+        contactInfo: p.contact,
+        userId: usersMap[p.seller_id]?.email ?? usersMap[p.user_id]?.email ?? p.seller_id ?? p.user_id,
+        userName: usersMap[p.seller_id]?.name ?? usersMap[p.user_id]?.name ?? p.name ?? "Student User",
+        userDepartment: usersMap[p.seller_id]?.dept ?? usersMap[p.user_id]?.dept ?? p.dept,
+        status: (p.sold_out ? "sold" : p.rejected ? "rejected" : p.approved ? "approved" : "pending") as Post['status'],
+        createdAt: p.created_at,
+      }));
+
+      setPendingPosts(mapped);
     })();
   }, [navigate]);
 
@@ -52,14 +77,29 @@ const Admin = () => {
 
   const handleReject = (postId: string) => {
     (async () => {
-      const { error } = await supabase.from("posts").delete().eq("id", postId);
+      const { error } = await supabase
+        .from("posts")
+        .update({ approved: false, rejected: true, updated_at: new Date() })
+        .eq("id", postId);
+
       if (error) {
-        console.error("delete failed", error);
-        toast.error("Failed to delete post");
+        console.error("reject failed", error);
+        // detect likely missing column error and give actionable guidance
+        const msg = (error as any)?.message || String(error);
+        if (msg.toLowerCase().includes("column \"rejected\"" ) || msg.toLowerCase().includes("unrecognized column")) {
+          const help = `Your database does not have a boolean column named 'rejected' on the posts table. Run this SQL in Supabase SQL editor to add it:\n\nALTER TABLE public.posts ADD COLUMN rejected boolean DEFAULT false;\n\nThen retry rejecting the post from the admin UI.`;
+          console.error(help);
+          toast.error("Failed to reject post: DB missing 'rejected' column. See console for SQL to add it.");
+          return;
+        }
+
+        toast.error("Failed to reject post");
         return;
       }
+
+      // remove from pending list but keep in DB marked as rejected so seller still sees it
       setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
-      toast.success("Post rejected and removed");
+      toast.success("Post rejected (kept in seller profile)");
     })();
   };
 

@@ -45,7 +45,7 @@ const Profile = () => {
           userId: parsedUser.email,
           userName: parsedUser.name,
           userDepartment: parsedUser.department || p.dept,
-          status: (p.sold_out ? "sold" : p.approved ? "approved" : "pending") as Post['status'],
+          status: (p.sold_out ? "sold" : p.rejected ? "rejected" : p.approved ? "approved" : "pending") as Post['status'],
           createdAt: p.created_at,
         }));
         setMyPosts(mapped);
