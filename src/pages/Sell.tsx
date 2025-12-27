@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Upload, Tag, FileText, BookOpen, Wrench, StickyNote, Package } from "lucide-react";
+import { ArrowLeft, Upload, Tag, FileText, BookOpen, Wrench, StickyNote, Package, X } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import { addPost } from "@/store/posts";
+import { supabase } from "../lib/supabase";
 import { Category } from "@/types";
 
 const categories: { value: Category; label: string; icon: any }[] = [
@@ -30,6 +31,56 @@ const Sell = () => {
     contactInfo: "",
     imageUrl: "",
   });
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
+  const MAX_FILES = 6;
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+  useEffect(() => {
+    return () => {
+      // revoke object URLs on unmount
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+  }, []);
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
+
+    const allowed = selected.filter((f) => f.type.startsWith("image/"));
+    if (allowed.length !== selected.length) {
+      toast.error("Only image files are allowed");
+    }
+
+    // check size
+    for (const f of allowed) {
+      if (f.size > MAX_SIZE) {
+        toast.error(`${f.name} is too large (max 5MB)`);
+        return;
+      }
+    }
+
+    const totalFiles = previews.length + allowed.length;
+    if (totalFiles > MAX_FILES) {
+      toast.error(`You can upload up to ${MAX_FILES} images`);
+      return;
+    }
+
+    const newPreviews = allowed.map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+    setPreviews((prev) => [...prev, ...newPreviews]);
+    setFiles((prev) => [...prev, ...allowed]);
+
+    // reset input so same file can be selected again if removed
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemovePreview = (index: number) => {
+    const toRemove = previews[index];
+    if (toRemove) URL.revokeObjectURL(toRemove.url);
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -46,9 +97,23 @@ const Sell = () => {
     }));
   }, [navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // upload helper: uploads to storage and returns { storage_path, publicUrl }
+  async function uploadFileToBucket(file: File, sellerId: string, postId: string) {
+    const filePath = `${sellerId}/${postId}/${Date.now()}_${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("post-images")
+      .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage.from("post-images").getPublicUrl(filePath);
+    const publicUrl = publicUrlData?.publicUrl || null;
+    return { storage_path: filePath, publicUrl };
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.category) {
       toast.error("Please select a category");
       return;
@@ -56,25 +121,116 @@ const Sell = () => {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      addPost({
+    try {
+      // get auth user id from stored session
+      const session = JSON.parse(localStorage.getItem("sb-session") || "null");
+      const authUser = session?.user;
+      if (!authUser) {
+        toast.error("Not authenticated");
+        setIsLoading(false);
+        return;
+      }
+
+      // create post as draft
+      const payload = {
+        seller_id: authUser.id,
+        type: "sell",
+        category: formData.category,
         title: formData.title,
         description: formData.description,
-        type: "sell",
-        category: formData.category as Category,
-        department: formData.department,
-        price: Number(formData.price),
-        imageUrl: formData.imageUrl,
-        contactInfo: formData.contactInfo,
-        userId: user.email,
-        userName: user.name,
-        userDepartment: user.department || formData.department,
-      });
+        price: formData.price ? Number(formData.price) : null,
+        contact: formData.contactInfo,
+        dept: formData.department || null,
+        approved: false,
+        sold_out: false,
+        is_free: false,
+      };
 
-      toast.success("Your listing has been submitted for approval!");
-      navigate("/dashboard");
+      console.debug("Creating post with payload", { authUserId: authUser.id, payload });
+
+      const { data: post, error: postError } = await supabase
+        .from("posts")
+        .insert([payload])
+        .select()
+        .maybeSingle();
+
+      if (postError || !post) {
+        console.error("post insert error", postError);
+        // debug full shape
+        try {
+          console.error("post insert debug", {
+            status: (postError as any)?.status,
+            code: (postError as any)?.code,
+            message: (postError as any)?.message,
+            details: (postError as any)?.details,
+            hint: (postError as any)?.hint,
+            payload,
+          });
+        } catch (ex) {
+          console.error("failed to stringify postError", ex);
+        }
+        // show more info to help debugging
+        try {
+          const msg = (postError as any)?.message || JSON.stringify(postError);
+          const details = (postError as any)?.details || (postError as any)?.hint || null;
+          toast.error(`Post create failed: ${msg}${details ? ' — ' + details : ''}`);
+        } catch (e) {
+          toast.error("Failed to create post");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      const uploadedPaths: string[] = [];
+      try {
+        const imageRows: any[] = [];
+        for (const f of files) {
+          const up = await uploadFileToBucket(f, authUser.id, post.id);
+          uploadedPaths.push(up.storage_path);
+          imageRows.push({ post_id: post.id, storage_path: up.storage_path, url: up.publicUrl });
+        }
+
+        if (imageRows.length) {
+          const { error: imgsErr } = await supabase.from("post_images").insert(imageRows);
+          if (imgsErr) throw imgsErr;
+        }
+
+        // mark post available
+        await supabase.from("posts").update({ updated_at: new Date() }).eq("id", post.id);
+
+        // update local store and UI
+        addPost({
+          title: formData.title,
+          description: formData.description,
+          type: "sell",
+          category: formData.category as Category,
+          department: formData.department,
+          price: Number(formData.price),
+          imageUrl: imageRows[0]?.url ?? formData.imageUrl,
+          contactInfo: formData.contactInfo,
+          userId: user.email,
+          userName: user.name,
+          userDepartment: user.department || formData.department,
+        });
+
+        toast.success("Your listing has been submitted for approval!");
+        navigate("/dashboard");
+      } catch (err) {
+        console.error("image upload/insert error", err);
+        // cleanup uploaded files
+        if (uploadedPaths.length) {
+          await supabase.storage.from("post-images").remove(uploadedPaths);
+        }
+        // delete post
+        await supabase.from("posts").delete().eq("id", post.id);
+        toast.error("Failed to upload images or save metadata. Try again.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Unexpected error occurred");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   if (!user) return null;
@@ -202,13 +358,48 @@ const Sell = () => {
               />
             </div>
 
-            {/* Image Upload Placeholder */}
+            {/* Image Upload */}
             <div>
-              <label className="block text-sm font-medium mb-2">Image (Optional)</label>
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Click to upload an image</p>
-                <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+              <label className="block text-sm font-medium mb-2">Images (Optional)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                {previews.length === 0 ? (
+                  <div className="p-8">
+                    <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Click to upload images</p>
+                    <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB (max {MAX_FILES})</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-3 p-2 justify-center">
+                    {previews.map((p, idx) => (
+                      <div key={p.url} className="relative w-28 h-28 rounded-lg overflow-hidden border border-border">
+                        <img src={p.url} alt={`preview-${idx}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            handleRemovePreview(idx);
+                          }}
+                          className="absolute top-1 right-1 bg-black/40 rounded-full p-1 text-white"
+                          aria-label="Remove image"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

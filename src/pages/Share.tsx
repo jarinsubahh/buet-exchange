@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Upload, Gift, FileText, BookOpen, Wrench, StickyNote, Package, Heart } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import { addPost } from "@/store/posts";
+import { supabase } from "@/lib/supabase";
 import { Category } from "@/types";
 
 const categories: { value: Category; label: string; icon: any }[] = [
@@ -29,6 +30,8 @@ const Share = () => {
     contactInfo: "",
     imageUrl: "",
   });
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -54,25 +57,72 @@ const Share = () => {
     }
 
     setIsLoading(true);
+    (async () => {
+      try {
+        const session = JSON.parse(localStorage.getItem("sb-session") || "null");
+        const authUser = session?.user;
 
-    setTimeout(() => {
-      addPost({
-        title: formData.title,
-        description: formData.description,
-        type: "free",
-        category: formData.category as Category,
-        department: formData.department,
-        imageUrl: formData.imageUrl,
-        contactInfo: formData.contactInfo,
-        userId: user.email,
-        userName: user.name,
-        userDepartment: user.department || formData.department,
-      });
+        // create post row as pending
+        const { data: post, error: postError } = await supabase
+          .from("posts")
+          .insert([
+            {
+              seller_id: authUser?.id ?? null,
+              type: "free",
+              category: formData.category,
+              title: formData.title,
+              description: formData.description,
+              contact: formData.contactInfo,
+              dept: formData.department || null,
+              approved: false,
+              sold_out: false,
+              is_free: true,
+            },
+          ])
+          .select()
+          .maybeSingle();
 
-      toast.success("Your free resource has been submitted for approval!");
-      navigate("/dashboard");
-      setIsLoading(false);
-    }, 1000);
+        if (postError || !post) {
+          console.error("share post insert error", postError);
+          toast.error("Failed to create post");
+          setIsLoading(false);
+          return;
+        }
+
+        // upload image if present
+        if (file) {
+          const filePath = `${authUser?.id ?? "anon"}/${post.id}/${Date.now()}_${file.name}`;
+          const { error: uploadError } = await supabase.storage.from("post-images").upload(filePath, file, { cacheControl: "3600", upsert: false });
+          if (uploadError) throw uploadError;
+          const { data: publicUrlData } = supabase.storage.from("post-images").getPublicUrl(filePath);
+          const publicUrl = publicUrlData?.publicUrl || null;
+          const { error: imgErr } = await supabase.from("post_images").insert([{ post_id: post.id, storage_path: filePath, url: publicUrl }]);
+          if (imgErr) throw imgErr;
+        }
+
+        toast.success("Your free resource has been submitted for approval!");
+        navigate("/dashboard");
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to submit. Try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("Only images allowed");
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      toast.error("Image too large (max 5MB)");
+      return;
+    }
+    setFile(f);
   };
 
   if (!user) return null;
@@ -186,13 +236,15 @@ const Share = () => {
               />
             </div>
 
-            {/* Image Upload Placeholder */}
+            {/* Image Upload */}
             <div>
               <label className="block text-sm font-medium mb-2">Image (Optional)</label>
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer">
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+              <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer">
                 <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Click to upload an image</p>
                 <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                {file && <p className="text-xs text-muted-foreground mt-2">Selected: {file.name}</p>}
               </div>
             </div>
 

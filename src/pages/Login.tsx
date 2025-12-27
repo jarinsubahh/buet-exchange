@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
+import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../lib/admin";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -20,48 +22,104 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateBuetEmail(formData.email)) {
       toast.error("Please use a valid BUET email address");
       return;
     }
 
     setIsLoading(true);
-    
-    // Simulate login - replace with actual auth
-    setTimeout(() => {
-      // Check for admin login
-      if (formData.email === "admin@buet.ac.bd" && formData.password === "admin123") {
-        localStorage.setItem("user", JSON.stringify({ 
-          email: formData.email, 
-          name: "Admin",
-          isAdmin: true 
-        }));
-        toast.success("Welcome back, Admin!");
-        navigate("/admin");
-      } else {
-        // Regular user login
-        localStorage.setItem("user", JSON.stringify({ 
-          email: formData.email, 
-          name: "Student User",
-          isAdmin: false 
-        }));
-        toast.success("Welcome back!");
-        navigate("/dashboard");
-      }
+    // Quick hardcoded admin signin (no email confirmation)
+    if (formData.email === ADMIN_EMAIL && formData.password === ADMIN_PASSWORD) {
+      const localAdmin = {
+        id: "admin-local",
+        email: ADMIN_EMAIL,
+        name: "Administrator",
+        phone: null,
+        department: null,
+        role: "admin",
+        isAdmin: true,
+      };
+      // store session stub and user
+      localStorage.setItem("sb-session", JSON.stringify({ provider_token: "admin-local-session" }));
+      localStorage.setItem("user", JSON.stringify(localAdmin));
+      toast.success("Welcome back, Admin!");
       setIsLoading(false);
-    }, 1000);
+      navigate("/admin");
+      return;
+    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) {
+        toast.error(error.message || "Sign in failed");
+        setIsLoading(false);
+        return;
+      }
+
+      const user = data.user;
+      const session = data.session;
+
+      if (!user || !session) {
+        toast.error("Sign in did not return a session. Check your email verification flow.");
+        setIsLoading(false);
+        return;
+      }
+
+        // NOTE: removed automatic `users` upsert because DB constraint was dropped.
+        // If you re-enable the FK to `public.users`, consider adding a server-side
+        // trigger or fixing RLS so clients can upsert safely.
+
+      // fetch profile from your `users` table (contact, dept, level, term, role, name)
+      const { data: userRow, error: userRowError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userRowError) {
+        console.warn("Could not read user row:", userRowError);
+      }
+
+      const localUser = {
+        id: user.id,
+        email: user.email ?? formData.email,
+        name:
+          userRow?.name ??
+          (user.user_metadata && (user.user_metadata as any).name) ??
+          "Student User",
+        phone:
+          userRow?.contact ??
+          (user.user_metadata && (user.user_metadata as any).phone) ??
+          null,
+        department: userRow?.dept ?? null,
+        level: userRow?.level ?? null,
+        term: userRow?.term ?? null,
+        role: userRow?.role ?? "user",
+      };
+
+      // Persist session + user for app UI
+      localStorage.setItem("sb-session", JSON.stringify(session));
+      localStorage.setItem("user", JSON.stringify(localUser));
+
+      toast.success(localUser.role === "admin" ? "Welcome back, Admin!" : "Welcome back!");
+      if (localUser.role === "admin") navigate("/admin");
+      else navigate("/dashboard");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen relative flex items-center justify-center px-6">
       <AnimatedBackground />
-      
-      {/* Back button */}
-      <Link 
-        to="/"
-        className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-      >
+      <Link to="/" className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="w-4 h-4" />
         Back
       </Link>
@@ -114,11 +172,7 @@ const Login = () => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button type="submit" disabled={isLoading} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
           </form>

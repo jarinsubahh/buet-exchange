@@ -4,6 +4,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, Building2, GraduationC
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
+import { supabase } from "../lib/supabase";
 
 const departments = [
   { value: "CSE", label: "Computer Science & Engineering" },
@@ -42,44 +43,186 @@ const Signup = () => {
     return email.endsWith("@gmail.com") || email.endsWith(".buet.ac.bd");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateBuetEmail(formData.email)) {
-      toast.error("Please use a valid BUET email address (.buet.ac.bd)");
-      return;
-    }
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
 
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
+  //   if (!validateBuetEmail(formData.email)) {
+  //     toast.error("Please use a valid BUET email address (.buet.ac.bd)");
+  //     return;
+  //   }
 
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
+  //   if (formData.password !== formData.confirmPassword) {
+  //     toast.error("Passwords do not match");
+  //     return;
+  //   }
 
-    setIsLoading(true);
-    
-    // Simulate signup - replace with actual auth
-    setTimeout(() => {
-      localStorage.setItem("user", JSON.stringify({ 
-        ...formData,
-        isAdmin: false 
-      }));
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
+  //   if (formData.password.length < 6) {
+  //     toast.error("Password must be at least 6 characters");
+  //     return;
+  //   }
+
+  //   if (!formData.department || !formData.level || !formData.term) {
+  //     toast.error("Please select department, level and term");
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+
+  //   try {
+  //     // Create auth user
+  //     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+  //       email: formData.email,
+  //       password: formData.password,
+  //       options: {
+  //         data: {
+  //           name: formData.name,
+  //         },
+  //       },
+  //     });
+
+  //     if (signUpError) {
+  //       toast.error(signUpError.message || "Sign up failed");
+  //       setIsLoading(false);
+  //       return;
+  //     }
+
+  //     const authUser = signUpData.user;
+  //     if (!authUser) {
+  //       toast.error("Sign up did not return a user. Try again.");
+  //       setIsLoading(false);
+  //       return;
+  //     }
+
+  //     // Insert profile into `users` table (use same id as auth user)
+  //     const { error: insertError } = await supabase.from("users").insert([
+  //       {
+  //         id: authUser.id,
+  //         name: formData.name,
+  //         contact: formData.phone,
+  //         dept: formData.department,
+  //         level: formData.level,
+  //         term: formData.term,
+  //         role: "user",
+  //       },
+  //     ]);
+
+  //     if (insertError) {
+  //       console.error("Profile insert error:", insertError);
+  //       toast.error("Account created but failed to save profile. Contact admin.");
+  //       // Still redirect to login so user can sign in (profile may be recoverable)
+  //       navigate("/login");
+  //       setIsLoading(false);
+  //       return;
+  //     }
+
+  //     toast.success("Account created successfully! Please sign in.");
+  //     navigate("/login");
+  //   } catch (err) {
+  //     const message = err instanceof Error ? err.message : "Unexpected error";
+  //     toast.error(message);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!validateBuetEmail(formData.email)) {
+    toast.error("Please use a valid BUET email address (.buet.ac.bd)");
+    return;
+  }
+
+  if (formData.password !== formData.confirmPassword) {
+    toast.error("Passwords do not match");
+    return;
+  }
+
+  if (formData.password.length < 6) {
+    toast.error("Password must be at least 6 characters");
+    return;
+  }
+
+  if (!formData.department || !formData.level || !formData.term) {
+    toast.error("Please select department, level and term");
+    return;
+  }
+
+  setIsLoading(true);
+
+    try {
+      // 1️⃣ Create auth user
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+          },
+        },
+      });
+
+      if (error) {
+        toast.error(error.message || "Sign up failed");
+        setIsLoading(false);
+        return;
+      }
+
+      const authUser = data.user;
+      if (!authUser) {
+        toast.error("Signup failed. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      // If signUp returned a session the client is authenticated and can write to users.
+      // Otherwise most projects require email confirmation and there will be no session.
+      if (data.session) {
+        const { error: upsertError } = await supabase
+          .from("users")
+          .upsert(
+            [
+              {
+                id: authUser.id,
+                email: formData.email,
+                name: formData.name,
+                contact: formData.phone,
+                dept: formData.department,
+                level: Number(formData.level) || null,
+                term: Number(formData.term) || null,
+                role: "user",
+              },
+            ],
+            { onConflict: "id" }
+          );
+
+        if (upsertError) {
+          console.error("Profile upsert error:", upsertError);
+          toast.error("Account created but failed to save profile. Contact admin.");
+          setIsLoading(false);
+          navigate("/login");
+          return;
+        }
+
+        toast.success("Account created and profile saved! Redirecting...");
+        navigate("/dashboard");
+      } else {
+        // No session — probably email confirmation required
+        toast.success("Account created. Please check your email to confirm, then sign in.");
+        navigate("/login");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      toast.error(message);
+    } finally {
       setIsLoading(false);
-    }, 1500);
-  };
+    }
+};
 
   return (
     <div className="min-h-screen relative flex items-center justify-center px-6 py-12">
       <AnimatedBackground />
-      
-      {/* Back button */}
-      <Link 
+
+      <Link
         to="/login"
         className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
       >
@@ -98,7 +241,6 @@ const Signup = () => {
 
         <div className="glass-card p-8 animate-slide-up">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name */}
             <div>
               <label className="block text-sm font-medium mb-2">Full Name</label>
               <div className="relative">
@@ -114,7 +256,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium mb-2">BUET Email</label>
               <div className="relative">
@@ -131,7 +272,6 @@ const Signup = () => {
               <p className="text-xs text-muted-foreground mt-1">Must use BUET email for verification</p>
             </div>
 
-            {/* Department */}
             <div>
               <label className="block text-sm font-medium mb-2">Department</label>
               <div className="relative">
@@ -152,7 +292,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Level and Term */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Level</label>
@@ -193,7 +332,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Phone */}
             <div>
               <label className="block text-sm font-medium mb-2">Contact Number</label>
               <div className="relative">
@@ -209,7 +347,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-sm font-medium mb-2">Password</label>
               <div className="relative">
@@ -232,7 +369,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="block text-sm font-medium mb-2">Confirm Password</label>
               <div className="relative">
@@ -248,11 +384,7 @@ const Signup = () => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button type="submit" disabled={isLoading} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading ? "Creating Account..." : "Create Account"}
             </button>
           </form>

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import PostCard from "@/components/PostCard";
-import { getPendingPosts, updatePostStatus, getPosts, savePosts } from "@/store/posts";
+import { supabase } from "@/lib/supabase";
 import { Post } from "@/types";
 
 const Admin = () => {
@@ -25,20 +25,42 @@ const Admin = () => {
       return;
     }
     setUser(parsedUser);
-    setPendingPosts(getPendingPosts());
+    // fetch pending posts from Supabase
+    (async () => {
+      const { data, error } = await supabase.from("posts").select("*").eq("approved", false).order("created_at", { ascending: false });
+      if (error) {
+        console.error("Failed to load pending posts", error);
+        toast.error("Failed to load pending posts");
+        return;
+      }
+      setPendingPosts(data as Post[]);
+    })();
   }, [navigate]);
 
   const handleApprove = (postId: string) => {
-    updatePostStatus(postId, "approved");
-    setPendingPosts(getPendingPosts());
-    toast.success("Post approved and published!");
+    (async () => {
+      const { error } = await supabase.from("posts").update({ approved: true, updated_at: new Date() }).eq("id", postId);
+      if (error) {
+        console.error("approve failed", error);
+        toast.error("Failed to approve post");
+        return;
+      }
+      setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
+      toast.success("Post approved and published!");
+    })();
   };
 
   const handleReject = (postId: string) => {
-    const posts = getPosts().filter((p) => p.id !== postId);
-    savePosts(posts);
-    setPendingPosts(getPendingPosts());
-    toast.success("Post rejected and removed");
+    (async () => {
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
+      if (error) {
+        console.error("delete failed", error);
+        toast.error("Failed to delete post");
+        return;
+      }
+      setPendingPosts((prev) => prev.filter((p) => p.id !== postId));
+      toast.success("Post rejected and removed");
+    })();
   };
 
   const handleLogout = () => {
