@@ -1,10 +1,12 @@
 import { Post } from "@/types";
+import { Link } from "react-router-dom";
 import { BookOpen, FileText, Wrench, StickyNote, Package, Phone, User, Building2 } from "lucide-react";
 
 interface PostCardProps {
   post: Post;
   onMarkSold?: (postId: string) => void;
   showActions?: boolean;
+  showAccess?: boolean;
 }
 
 const categoryIcons = {
@@ -23,7 +25,7 @@ const categoryLabels = {
   other: "Other",
 };
 
-const PostCard = ({ post, onMarkSold, showActions = false }: PostCardProps) => {
+const PostCard = ({ post, onMarkSold, showActions = false, showAccess = true }: PostCardProps) => {
   const CategoryIcon = categoryIcons[post.category];
 
   return (
@@ -95,14 +97,25 @@ const PostCard = ({ post, onMarkSold, showActions = false }: PostCardProps) => {
       </div>
 
       {/* Actions */}
-      {showActions && post.status === "approved" && (
-        <button
-          onClick={() => onMarkSold?.(post.id)}
-          className="mt-4 w-full py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors text-sm font-medium"
-        >
-          Mark as Sold
-        </button>
-      )}
+      <div className="mt-4">
+        {showAccess && (
+          <Link
+            to={`/access/${post.id}`}
+            className="block w-full text-center py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+          >
+            Access
+          </Link>
+        )}
+
+        {showActions && post.status === "approved" && (
+          <button
+            onClick={() => onMarkSold?.(post.id)}
+            className="mt-3 w-full py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors text-sm font-medium"
+          >
+            Mark as Sold
+          </button>
+        )}
+      </div>
     </div>
   );
 };

@@ -11,6 +11,7 @@ import Sell from "./pages/Sell";
 import Share from "./pages/Share";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import AccessContent from "./pages/AccessContent";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sell" element={<Sell />} />
           <Route path="/share" element={<Share />} />
+          <Route path="/access/:id" element={<AccessContent />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />

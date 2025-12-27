@@ -26,6 +26,8 @@ const mockPosts: Post[] = [
     category: "pdf",
     department: "EEE",
     contactInfo: "fahim@eee.buet.ac.bd",
+    fileUrl: "https://example.com/digital-logic-manual.pdf",
+    isPdf: true,
     userId: "user2",
     userName: "Nadia Akter",
     userDepartment: "EEE",

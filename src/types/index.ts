@@ -17,6 +17,8 @@ export interface Post {
   department: string;
   price?: number;
   imageUrl?: string;
+  fileUrl?: string; // URL to PDF or image provided by seller/share
+  isPdf?: boolean;
   contactInfo: string;
   userId: string;
   userName: string;

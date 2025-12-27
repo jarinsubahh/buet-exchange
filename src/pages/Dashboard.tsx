@@ -54,7 +54,9 @@ const Dashboard = () => {
         category: p.category as Post['category'],
         department: p.dept,
         price: p.price,
-        imageUrl: null,
+        imageUrl: p.image_url ?? null,
+        fileUrl: p.file_url ?? null,
+        isPdf: p.is_pdf ?? false,
         contactInfo: p.contact,
         userId: usersMap[p.seller_id]?.email ?? usersMap[p.user_id]?.email ?? p.seller_id ?? p.user_id,
         userName:

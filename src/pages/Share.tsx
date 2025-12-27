@@ -29,6 +29,7 @@ const Share = () => {
     department: "",
     contactInfo: "",
     imageUrl: "",
+    fileUrl: "",
   });
   // images removed — no file upload
 
@@ -62,24 +63,25 @@ const Share = () => {
         const authUser = session?.user;
 
         // create post row as pending
-        const { data: post, error: postError } = await supabase
-          .from("posts")
-          .insert([
-            {
-              seller_id: authUser?.id ?? null,
-              type: "free",
-              category: formData.category,
-              title: formData.title,
-              description: formData.description,
-              contact: formData.contactInfo,
-              dept: formData.department || null,
-              approved: false,
-              sold_out: false,
-              is_free: true,
-            },
-          ])
-          .select()
-          .maybeSingle();
+        const payload: any = {
+          seller_id: authUser?.id ?? null,
+          type: "free",
+          category: formData.category,
+          title: formData.title,
+          description: formData.description,
+          contact: formData.contactInfo,
+          dept: formData.department || null,
+          approved: false,
+          sold_out: false,
+          is_free: true,
+        };
+
+        if (formData.fileUrl) {
+          payload.file_url = formData.fileUrl;
+          payload.is_pdf = formData.fileUrl.toLowerCase().endsWith(".pdf") || formData.category === "pdf";
+        }
+
+        const { data: post, error: postError } = await supabase.from("posts").insert([payload]).select().maybeSingle();
 
         if (postError || !post) {
           console.error("share post insert error", postError);
@@ -212,6 +214,19 @@ const Share = () => {
                 placeholder="Phone number or email"
                 required
               />
+            </div>
+
+            {/* Resource URL */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Resource URL (image or PDF)</label>
+              <input
+                type="url"
+                value={formData.fileUrl}
+                onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                className="input-field w-full"
+                placeholder="https://example.com/resource.pdf or image URL"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Provide a direct URL to a PDF or an image. We won't host files; you provide URLs.</p>
             </div>
 
             {/* Images removed: only description/contact now */}

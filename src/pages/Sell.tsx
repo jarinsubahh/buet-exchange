@@ -30,6 +30,7 @@ const Sell = () => {
     price: "",
     contactInfo: "",
     imageUrl: "",
+    fileUrl: "",
   });
   // no image uploads anymore
 
@@ -73,7 +74,7 @@ const Sell = () => {
       }
 
       // create post as draft
-      const payload = {
+      const payload: any = {
         seller_id: authUser.id,
         type: "sell",
         category: formData.category,
@@ -86,6 +87,11 @@ const Sell = () => {
         sold_out: false,
         is_free: false,
       };
+
+      if (formData.fileUrl) {
+        payload.file_url = formData.fileUrl;
+        payload.is_pdf = formData.fileUrl.toLowerCase().endsWith(".pdf") || formData.category === "pdf";
+      }
 
       console.debug("Creating post with payload", { authUserId: authUser.id, payload });
 
@@ -135,6 +141,7 @@ const Sell = () => {
           department: formData.department,
           price: Number(formData.price),
           imageUrl: formData.imageUrl,
+          fileUrl: formData.fileUrl,
           contactInfo: formData.contactInfo,
           userId: user.email,
           userName: user.name,
@@ -267,6 +274,19 @@ const Sell = () => {
                   required
                 />
               </div>
+            </div>
+
+            {/* Resource URL */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Resource URL (image or PDF)</label>
+              <input
+                type="url"
+                value={formData.fileUrl}
+                onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                className="input-field w-full"
+                placeholder="https://example.com/resource.pdf or image URL"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Provide a direct URL to a PDF or an image. We won't host files; seller provides URLs.</p>
             </div>
 
             {/* Contact Info */}

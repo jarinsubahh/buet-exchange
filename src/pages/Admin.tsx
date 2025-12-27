@@ -49,7 +49,9 @@ const Admin = () => {
         category: p.category as Post['category'],
         department: p.dept,
         price: p.price,
-        imageUrl: null,
+        imageUrl: p.image_url ?? null,
+        fileUrl: p.file_url ?? null,
+        isPdf: p.is_pdf ?? false,
         contactInfo: p.contact,
         userId: usersMap[p.seller_id]?.email ?? usersMap[p.user_id]?.email ?? p.seller_id ?? p.user_id,
         userName: usersMap[p.seller_id]?.name ?? usersMap[p.user_id]?.name ?? p.name ?? "Student User",
@@ -147,10 +149,16 @@ const Admin = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
             {pendingPosts.map((post) => (
               <div key={post.id} className="glass-card p-6">
-                <PostCard post={post} />
-                
-                {/* Admin Actions */}
-                <div className="flex gap-3 mt-4 pt-4 border-t border-border">
+                <PostCard post={post} showAccess={false} />
+
+                <div className="mt-4 pt-4 border-t border-border flex gap-3">
+                  <Link
+                    to={`/access/${post.id}`}
+                    className="flex-1 text-center py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+                  >
+                    Access
+                  </Link>
+
                   <button
                     onClick={() => handleApprove(post.id)}
                     className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-success/20 text-green-400 hover:bg-success/30 transition-colors"
@@ -158,6 +166,7 @@ const Admin = () => {
                     <Check className="w-4 h-4" />
                     Approve
                   </button>
+
                   <button
                     onClick={() => handleReject(post.id)}
                     className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors"
