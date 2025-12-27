@@ -3,6 +3,7 @@ import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import { getPosts } from "@/store/posts";
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const MakePayment = () => {
   const { id } = useParams();
@@ -10,9 +11,51 @@ const MakePayment = () => {
   const [post, setPost] = useState<any>(null);
 
   useEffect(() => {
-    const posts = getPosts();
-    const p = posts.find((x) => x.id === id);
-    setPost(p || null);
+    (async () => {
+      const posts = getPosts();
+      const p = posts.find((x) => x.id === id);
+      if (p) {
+        setPost(p || null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.from("posts").select("*").eq("id", id).maybeSingle();
+        if (error) {
+          console.error("Failed to fetch post for payment", error);
+          setPost(null);
+          return;
+        }
+        if (!data) {
+          setPost(null);
+          return;
+        }
+
+        const mapped = {
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          type: data.is_free ? "free" : data.type,
+          category: data.category,
+          department: data.dept,
+          price: data.price,
+          imageUrl: data.image_url ?? null,
+          fileUrl: data.file_url ?? null,
+          isPdf: data.is_pdf ?? false,
+          contactInfo: data.contact,
+          userId: data.seller_id ?? data.user_id,
+          userName: data.name ?? data.seller_id ?? data.user_id,
+          userDepartment: data.dept,
+          status: data.sold_out ? "sold" : data.rejected ? "rejected" : data.approved ? "approved" : "pending",
+          createdAt: data.created_at,
+        };
+
+        setPost(mapped as any);
+      } catch (ex) {
+        console.error(ex);
+        setPost(null);
+      }
+    })();
   }, [id]);
 
   if (!post) {
