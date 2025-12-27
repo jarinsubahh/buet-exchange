@@ -137,9 +137,9 @@ const AccessContent = () => {
     );
   }
 
-  // If it's a sell post and user is not admin and not paid, redirect to mock payment
+  // If it's a sell post and user is not admin and not paid, redirect to make-payment
   if (post.type === "sell" && !paid && !isAdmin) {
-    navigate(`/mock-payment/${id}`);
+    navigate(`/make-payment/${id}`);
     return null;
   }
 
@@ -155,7 +155,7 @@ const AccessContent = () => {
       updatePostStatus(post.id, "approved");
       setPost({ ...post, status: "approved" });
       toast.success("Post approved and published!");
-      navigate("/admin");
+      navigate("/dashboard");
     } catch (err) {
       console.error(err);
       toast.error("Failed to approve post");

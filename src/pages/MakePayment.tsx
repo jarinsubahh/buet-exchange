@@ -62,12 +62,21 @@ const MakePayment = () => {
             <div className="text-2xl font-bold">৳{post.price ?? 0}</div>
           </div>
 
-          <button
-            onClick={() => navigate(`/mock-payment/${id}`)}
-            className="btn-primary w-full"
-          >
-            Choose Payment Option
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate(`/access/${id}?paid=1`)}
+              className="btn-primary w-full"
+            >
+              Proceed to Payment
+            </button>
+
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full py-2 rounded-lg bg-secondary/10 text-sm"
+            >
+              Back to Dashboard
+            </button>
+          </div>
         </div>
       </main>
     </div>
