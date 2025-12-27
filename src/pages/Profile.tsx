@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
 import PostCard from "@/components/PostCard";
+import { supabase } from "@/lib/supabase";
 import { getPostsByUser, updatePostStatus, getPosts, savePosts } from "@/store/posts";
 import { Post } from "@/types";
 
@@ -21,13 +22,51 @@ const Profile = () => {
     }
     const parsedUser = JSON.parse(userData);
     setUser(parsedUser);
-    setMyPosts(getPostsByUser(parsedUser.email));
+    // fetch user's posts from Supabase
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("posts").select("*").eq("seller_id", parsedUser.id).order("created_at", { ascending: false });
+        if (error) {
+          console.error("failed to fetch user posts", error);
+          setMyPosts(getPostsByUser(parsedUser.email));
+          return;
+        }
+
+        const mapped: Post[] = (data || []).map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          type: (p.is_free ? "free" : p.type) as Post['type'],
+          category: p.category as Post['category'],
+          department: p.dept,
+          price: p.price,
+          imageUrl: null,
+          contactInfo: p.contact,
+          userId: parsedUser.email,
+          userName: parsedUser.name,
+          userDepartment: parsedUser.department || p.dept,
+          status: (p.sold_out ? "sold" : p.approved ? "approved" : "pending") as Post['status'],
+          createdAt: p.created_at,
+        }));
+        setMyPosts(mapped);
+      } catch (e) {
+        console.error(e);
+        setMyPosts(getPostsByUser(parsedUser.email));
+      }
+    })();
   }, [navigate]);
 
   const handleMarkSold = (postId: string) => {
-    updatePostStatus(postId, "sold");
-    setMyPosts(getPostsByUser(user.email));
-    toast.success("Item marked as sold!");
+    (async () => {
+      const { error } = await supabase.from("posts").update({ sold_out: true, updated_at: new Date() }).eq("id", postId);
+      if (error) {
+        console.error("mark sold failed", error);
+        toast.error("Failed to mark sold");
+        return;
+      }
+      setMyPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, status: "sold" } : p)));
+      toast.success("Item marked as sold!");
+    })();
   };
 
   const handleLogout = () => {

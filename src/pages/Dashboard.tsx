@@ -6,6 +6,7 @@ import Logo from "@/components/Logo";
 import PostCard from "@/components/PostCard";
 import DepartmentTabs from "@/components/DepartmentTabs";
 import { getApprovedPosts } from "@/store/posts";
+import { supabase } from "@/lib/supabase";
 import { Post, Department } from "@/types";
 
 const Dashboard = () => {
@@ -23,7 +24,47 @@ const Dashboard = () => {
       return;
     }
     setUser(JSON.parse(userData));
-    setPosts(getApprovedPosts());
+    // fetch approved posts from Supabase
+    (async () => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("approved", true)
+        .eq("sold_out", false)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("Failed to fetch posts", error);
+        setPosts(getApprovedPosts());
+        return;
+      }
+
+      // fetch users for mapping seller info
+      const sellerIds = Array.from(new Set((data || []).map((p: any) => p.seller_id).filter(Boolean)));
+      let usersMap: Record<string, any> = {};
+      if (sellerIds.length) {
+        const { data: usersData } = await supabase.from("users").select("id, name, dept, contact, email").in("id", sellerIds);
+        usersMap = (usersData || []).reduce((acc: any, u: any) => ({ ...acc, [u.id]: u }), {});
+      }
+
+      const mapped: Post[] = (data || []).map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        type: (p.is_free ? "free" : p.type) as Post['type'],
+        category: p.category as Post['category'],
+        department: p.dept,
+        price: p.price,
+        imageUrl: null,
+        contactInfo: p.contact,
+        userId: usersMap[p.seller_id]?.email ?? p.seller_id,
+        userName: usersMap[p.seller_id]?.name ?? "Student User",
+        userDepartment: usersMap[p.seller_id]?.dept ?? p.dept,
+        status: (p.sold_out ? "sold" : p.approved ? "approved" : "pending") as Post['status'],
+        createdAt: p.created_at,
+      }));
+
+      setPosts(mapped);
+    })();
   }, [navigate]);
 
   const filteredPosts = posts.filter((post) => {

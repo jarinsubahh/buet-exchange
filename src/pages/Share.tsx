@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Upload, Gift, FileText, BookOpen, Wrench, StickyNote, Package, Heart } from "lucide-react";
+import { ArrowLeft, Gift, FileText, BookOpen, Wrench, StickyNote, Package, Heart } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import Logo from "@/components/Logo";
@@ -30,8 +30,7 @@ const Share = () => {
     contactInfo: "",
     imageUrl: "",
   });
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // images removed — no file upload
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -89,16 +88,7 @@ const Share = () => {
           return;
         }
 
-        // upload image if present
-        if (file) {
-          const filePath = `${authUser?.id ?? "anon"}/${post.id}/${Date.now()}_${file.name}`;
-          const { error: uploadError } = await supabase.storage.from("post-images").upload(filePath, file, { cacheControl: "3600", upsert: false });
-          if (uploadError) throw uploadError;
-          const { data: publicUrlData } = supabase.storage.from("post-images").getPublicUrl(filePath);
-          const publicUrl = publicUrlData?.publicUrl || null;
-          const { error: imgErr } = await supabase.from("post_images").insert([{ post_id: post.id, storage_path: filePath, url: publicUrl }]);
-          if (imgErr) throw imgErr;
-        }
+        // no image uploads — post created as pending
 
         toast.success("Your free resource has been submitted for approval!");
         navigate("/dashboard");
@@ -111,19 +101,7 @@ const Share = () => {
     })();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] ?? null;
-    if (!f) return;
-    if (!f.type.startsWith("image/")) {
-      toast.error("Only images allowed");
-      return;
-    }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error("Image too large (max 5MB)");
-      return;
-    }
-    setFile(f);
-  };
+  // no file handler
 
   if (!user) return null;
 
@@ -236,17 +214,7 @@ const Share = () => {
               />
             </div>
 
-            {/* Image Upload */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Image (Optional)</label>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-              <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer">
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Click to upload an image</p>
-                <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
-                {file && <p className="text-xs text-muted-foreground mt-2">Selected: {file.name}</p>}
-              </div>
-            </div>
+            {/* Images removed: only description/contact now */}
 
             <button
               type="submit"

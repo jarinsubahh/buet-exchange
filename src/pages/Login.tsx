@@ -99,6 +99,7 @@ const Login = () => {
         level: userRow?.level ?? null,
         term: userRow?.term ?? null,
         role: userRow?.role ?? "user",
+        isAdmin: (userRow?.role ?? "user") === "admin",
       };
 
       // Persist session + user for app UI
